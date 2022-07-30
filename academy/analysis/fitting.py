@@ -84,6 +84,13 @@ def prepare_fit(templates, data_category, mc_categories):
 
 
 def run_fit(L, templates, data_category, mc_categories, x0nuisance=None, calculate_covariance=True, **kwargs):
+    """Run fit with a given likelihood.
+
+    L: Likelihood function
+    templates: templates_pre_fit for a given channel
+    data_category: data or asimov_data (to tell which "data" to pick from the templates)
+    mc_categories: template_categories (to tell which "templates" from all the templates)
+    """
     sample, x0 = prepare_fit(templates, data_category, mc_categories)  
     
     if x0nuisance is not None:
