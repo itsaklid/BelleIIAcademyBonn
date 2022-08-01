@@ -1,4 +1,4 @@
-from effort2.math.integrate import quad
+from academy.math.integrate import quad
 from uncertainties import unumpy as unp
 
 
