@@ -5,6 +5,147 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
+import scipy.integrate
+
+
+def chi2_from_templates(templates, template_category_names, data_type):
+    mc_yields = sum(unp.nominal_values(templates[x]) for x in template_category_names)
+    data_yields = unp.nominal_values(templates[data_type])
+    mc_uncertainty_sq = sum(unp.std_devs(templates[x])**2 for x in template_category_names)
+    data_uncertainty_sq = unp.std_devs(templates[data_type])**2
+    if data_type == "asimov_data" or data_type == "toy_data": 
+        uns_sq = mc_uncertainty_sq + data_uncertainty_sq
+        return np.sum([x for x in np.nan_to_num((mc_yields - data_yields) ** 2 / uns_sq) if x < 1e7])
+    if data_type == "data": 
+        chi_p = []
+        for n_i, nu_i in zip(data_yields, mc_yields):
+            if n_i > 0: chi_p.append(n_i * np.log(n_i / nu_i) + nu_i - n_i)
+        chi_p = 2 * np.sum(chi_p)
+        uns_sq = data_uncertainty_sq
+        chi = np.sum([x for x in np.nan_to_num((mc_yields - data_yields) ** 2 / uns_sq) if x < 1e7])
+        return chi_p
+
+def ndf_from_templates(templates, template_categories, data_type):
+    data_yields = unp.nominal_values(templates[data_type])
+    ndf = sum([n_i > 0 for n_i in data_yields]) - len(template_categories)
+    return ndf
+
+
+def annotate_gof(ax, templates, template_cateogories, ndf, data_type):
+    chi2 = chi2_from_templates(templates, template_cateogories, data_type)
+    ndf = ndf_from_templates(templates, template_cateogories, data_type,)
+    p_value = scipy.integrate.quad(lambda x: scipy.stats.chi2.pdf(x, df=ndf), chi2, np.inf)[0]
+    add_channel(ax[0], r"$\mathbf{\chi^2}_\mathrm{P}$ / ndf = " + f"{chi2:.2f} / {ndf}", px=0.03, py=0.93, fontsize=10)
+    add_channel(ax[0], r"p-Value = " + f"{p_value:.4f}", px=0.03, py=0.88, fontsize=10)
+
+    
+def plot_templates(
+    templates,
+    template_categories,
+    bins,
+    var_str,
+    unit,
+    y_str,
+    data,
+    color_dict,
+    label_dict,
+    full_systematic_covariance=None
+    
+):
+    fig, ax = create_hist_ratio_figure()
+    fig.subplots_adjust(hspace=0.1)
+
+    bin_width = abs(bins[0:-1] - bins[1:])
+    bin_centers = (bins[0:-1] + bins[1:])/2
+
+    bottom = np.zeros(len(bin_centers))
+    for category in template_categories:
+        ax[0].bar(
+            bin_centers,
+            unp.nominal_values(templates[category]),
+            width=bin_width,
+            bottom=bottom,
+            label=label_dict[category],
+            color=color_dict[category],
+            edgecolor="black", 
+            lw=0.5,
+        )
+        bottom += unp.nominal_values(templates[category])
+
+    ax[0].errorbar(
+        bin_centers, 
+        unp.nominal_values(templates[data]),
+        yerr=unp.std_devs(templates[data]),
+        marker='.',
+        color='black', 
+        ls='',
+        label=label_dict[data],
+    )
+    
+    if full_systematic_covariance is None:
+        mc_uncertainty = sum([unp.std_devs(templates[category]) for category in template_categories])
+        systematic_label = "MC Stat. Unc."
+    else:
+        mc_uncertainty = (sum([unp.std_devs(templates[category]) for category in template_categories])**2 + full_systematic_covariance.diagonal())**0.5
+        systematic_label = "Syst. Unc."
+    
+    ax[0].bar(
+        bin_centers,
+        mc_uncertainty,
+        width=bin_width,
+        bottom=bottom - mc_uncertainty/2,
+        color="tab:green", alpha=0.7, hatch="//",
+        label=systematic_label,
+    )
+    
+    ax[0].set_ylim(0, ax[0].get_ylim()[1])  # Force ymin=0
+    set_yscale(ax[0])
+    handles, labels = ax[0].get_legend_handles_labels()
+    ax[0].legend(handles[::-1], labels[::-1], frameon=False, fontsize="x-small", ncol=1, loc='upper right')
+    ax[0].set_ylabel(create_ylabel(y_str, bin_width, unit))
+    var_str = var_str if var_str else column
+    x_label = var_str + f" [{unit}]" if unit else var_str
+    
+    ax[1].set_xlabel(x_label)
+    ax[1].set_ylabel(r"Data/MC")
+    ax[1].set_axisbelow(True)
+    ax[1].grid(axis="y")
+
+    data_ratio = calculate_ratio(
+        numerator=unp.nominal_values(templates[data]),
+        denominator=sum([unp.nominal_values(templates[category]) for category in template_categories]),
+        numerator_uncertainty=unp.std_devs(templates[data]),
+        denominator_uncertainty=None
+    )
+
+    mc_ratio = calculate_ratio(
+        numerator=sum([unp.nominal_values(templates[category]) for category in template_categories]),
+        denominator=sum([unp.nominal_values(templates[category]) for category in template_categories]),
+        numerator_uncertainty=mc_uncertainty,
+        denominator_uncertainty=None
+    )
+    
+    ax[1].errorbar(
+        bin_centers,
+        unp.nominal_values(data_ratio),
+        yerr=unp.std_devs(data_ratio),
+        ls="",
+        marker=".",
+        color="black",
+    )
+    
+    ax[1].bar(
+        bin_centers,
+        mc_uncertainty/bottom,
+        width=bin_width,
+        bottom=1 - mc_uncertainty/bottom/2,
+        color="tab:green", alpha=1.0, hatch="//",
+    )
+    ax[1].set_ylim(bottom=0.6, top=1.4)
+    
+    return fig, ax
+
+
 
 def plot_correlation_matrix(
     matrix, 
