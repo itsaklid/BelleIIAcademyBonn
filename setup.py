@@ -16,15 +16,20 @@ setup(
 Software for the Belle II Academy in Bonn.
 ''',
     install_requires=[
+        'tqdm',
         'numpy<1.23',  # Remove this when numba becomes compatible with numpy>=1.23
+        'pandas',
         'scipy',
         'numba',
         'matplotlib', 
-        'jupyterlab', 
+        'jupyterlab',
+        'jupyter',
         'uncertainties',
         'iminuit',
         'gvar',
         'numdifftools',
+        'statsmodels',
+        'tables'
     ],
     extras_require={
         "examples":  [],
