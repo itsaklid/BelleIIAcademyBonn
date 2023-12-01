@@ -64,7 +64,7 @@ def plot_templates(
             bin_centers,
             unp.nominal_values(templates[category]),
             width=bin_width,
-            bottom=bottom,
+            bottom =bottom,
             label=label_dict[category],
             color=color_dict[category],
             edgecolor="black", 
